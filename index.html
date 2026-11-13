@@ -510,28 +510,38 @@ function hapusBarisMasuk(i) {
 }
 
 async function simpanMasuk() {
+  const sj = $('sm_sj').value.trim();
+  const sup = $('sm_sup').value.trim();
+  if (!sj) { alert('Nomor surat jalan wajib diisi'); $('sm_sj').focus(); return; }
+  if (!sup) { alert('Nama supplier wajib diisi'); $('sm_sup').focus(); return; }
+
   const items = [];
+  let qtyKosong = false;
   document.querySelectorAll('#sm_items .card').forEach(card => {
     const i = card.id.replace('smr_', '');
     const sel = $('smn_' + i);
     if (!sel.value) return;
+    const qty = $('smq_' + i).value.trim();
+    if (qty === '' || Number(qty) <= 0) { qtyKosong = true; return; }
     const opt = sel.options[sel.selectedIndex];
     items.push({
       nama: opt.getAttribute('data-nama') || sel.value,
-      qty: $('smq_' + i).value,
+      qty: qty,
       keterangan: $('smk_' + i).value.trim()
     });
   });
+  if (qtyKosong) { alert('Quantity wajib diisi (lebih dari 0) untuk setiap barang'); return; }
   if (!items.length) { alert('Pilih minimal satu barang'); return; }
+
   const d = {
-    tanggal: $('sm_tgl').value, surat_jalan: $('sm_sj').value.trim(), no_po: $('sm_po').value.trim(),
+    tanggal: $('sm_tgl').value, surat_jalan: sj, no_po: $('sm_po').value.trim(),
     no_polisi: $('sm_pol').value.trim(), driver: $('sm_drv').value.trim(),
-    supplier: $('sm_sup').value.trim(), items: items
+    supplier: sup, items: items
   };
   try {
     const r = await api('simpanSparepartMasuk', {}, d);
-    hasil('sm_box', '📦 SPAREPART MASUK\nTanggal: ' + d.tanggal + '\nSurat jalan: ' + (d.surat_jalan || '-') +
-      '\nNo PO: ' + (d.no_po || '-') + '\nSupplier: ' + (d.supplier || '-') +
+    hasil('sm_box', '📦 SPAREPART MASUK\nTanggal: ' + d.tanggal + '\nSurat jalan: ' + d.surat_jalan +
+      '\nNo PO: ' + (d.no_po || '-') + '\nSupplier: ' + d.supplier +
       '\nNo polisi: ' + (d.no_polisi || '-') + '\nDriver: ' + (d.driver || '-') +
       '\n' + items.map((i, n) => (n + 1) + '. ' + i.nama + ' | Qty ' + i.qty +
         (i.keterangan ? ' | ' + i.keterangan : '')).join('\n') +
