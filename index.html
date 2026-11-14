@@ -23,7 +23,8 @@
   .badge{font-size:12px;padding:2px 8px;border-radius:10px;background:#DBEAFE}
   .Open,.Baru{background:#FEF3C7}.Dikerjakan{background:#DBEAFE}.Ditutup,.Selesai{background:#DCFCE7}
   pre{white-space:pre-wrap;font-family:inherit;font-size:13px;background:#F7F8FA;padding:8px;border-radius:8px}
-  #reader{width:100%;display:none;margin-top:8px}
+  #reader{width:100%;max-width:360px;aspect-ratio:1/1;margin:8px auto 0;display:none;overflow:hidden;border-radius:12px;background:#000}
+  #reader video{width:100%!important;height:100%!important;object-fit:cover}
   .hr{border-top:1px solid #eee;margin:8px 0}
 </style>
 </head>
@@ -225,7 +226,7 @@ function scanBuka() {
   $('reader').style.display = 'block';
   $('btnStopScan').style.display = 'block';
   scanner = new Html5Qrcode('reader');
-  scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 120 } },
+  scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 200, height: 200 } },
     t => { scanStop(); scanKode(t); }, () => {})
     .catch(e => { scanStop(); alert('Kamera gagal dibuka: ' + e); });
 }
