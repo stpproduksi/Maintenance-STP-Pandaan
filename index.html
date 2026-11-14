@@ -38,6 +38,7 @@
   <button id="nav_wo" onclick="tab('wo')">WO</button>
   <button id="nav_kpi" onclick="tab('kpi')">KPI</button>
   <button id="nav_masuk" onclick="tab('masuk')">Sparepart Masuk</button>
+  <button id="nav_lapstok" onclick="tab('lapstok')">Lap. Stok</button>
   <button class="btn o" onclick="localStorage.removeItem('mt_k');location.reload()">Keluar / Ganti Kode</button>
 </nav>
 
@@ -116,6 +117,15 @@
   <div id="sm_box"></div>
 </section>
 
+<!-- LAP. STOK -->
+<section id="lapstok" class="tab">
+  <div class="card">
+    <b>Laporan stok per <span id="ls_tgl"></span></b>
+    <button class="btn o" onclick="initLapStok()">Refresh</button>
+  </div>
+  <div id="ls_box"></div>
+</section>
+
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbwEWldl8dCISBOXZ0-TrKuUYEhcbVmY9fGNuAzllYTW0xu36Wg4IXvKRE2ylnlIxM0n/exec';
 let KEY = localStorage.getItem('mt_k') || '';
@@ -167,7 +177,7 @@ function tab(id) {
   document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === id));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.id === 'nav_' + id));
   const fn = { mesin: initMesin, harian: initHarian, lapor: initLapor, pm: loadPM,
-               wo: loadWO, kpi: loadKPI, masuk: initMasuk }[id];
+               wo: loadWO, kpi: loadKPI, masuk: initMasuk, lapstok: initLapStok }[id];
   fn().catch(e => alert('Gagal: ' + (e.message || e)));
 }
 
@@ -557,6 +567,24 @@ function kosongMasuk() {
   SM_N = 0;
   tambahBarisMasuk();
   $('sm_box').innerHTML = '';
+}
+
+/* ====== LAP. STOK ====== */
+
+async function initLapStok() {
+  const p = hariIni().split('-');
+  $('ls_tgl').textContent = p[2] + '-' + p[1] + '-' + p[0];   // tanggal hari ini, dd-mm-yyyy
+  const list = await api('lapStok');
+  if (!list.length) {
+    $('ls_box').innerHTML = '<div class="card">Tidak ada sparepart yang masih ada stok.</div>';
+    return;
+  }
+  $('ls_box').innerHTML = '<div class="card"><table style="width:100%;border-collapse:collapse;font-size:15px">' +
+    '<tr style="text-align:left;border-bottom:2px solid #ddd"><th style="padding:6px">Nama sparepart</th>' +
+    '<th style="padding:6px;text-align:right">Saldo akhir</th></tr>' +
+    list.map(x => '<tr style="border-bottom:1px solid #eee"><td style="padding:6px">' + esc(x.nama) +
+      '</td><td style="padding:6px;text-align:right"><b>' + esc(x.saldo) + '</b></td></tr>').join('') +
+    '</table></div>';
 }
 
 window.onload = () => { if (KEY) tab('mesin'); };
