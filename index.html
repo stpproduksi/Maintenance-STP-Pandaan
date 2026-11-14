@@ -421,7 +421,7 @@ async function loadWO() {
       '</div>';
     const info = '<b>' + id + '</b> <span class="badge">' + esc(w.tipe) + '</span><br>' +
       'Mesin ' + esc(w.id_mesin) + ' · urgensi ' + esc(w.urgensi) + ' · <span class="badge ' + esc(w.status) + '">' + esc(w.status) + '</span><br>' +
-      'Gejala: ' + esc(w.gejala) + waktu;
+      'Gejala: ' + esc(w.gejala) + '<br>Mesin berhenti: <b>' + esc(w.mesin_berhenti || '-') + '</b>' + waktu;
     if (w.status === 'Selesai') {
       return '<div class="card" style="opacity:.7">' + info + '<br>Teknisi: ' + esc(w.teknisi) +
         '<br>Penyebab: ' + esc(w.penyebab) + '<br>Tindakan: ' + esc(w.tindakan) +
