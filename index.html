@@ -213,11 +213,18 @@ function kosongLapor() {
 
 /* ====== DATA ====== */
 
+const GRUP_MESIN = ['ALL THERMO', 'ALL EXTRUDER', 'ALL GILING'];
+
 async function loadMesinList() {
   if (!MESIN_LIST.length) MESIN_LIST = await api('mesinList');
-  const opsi = MESIN_LIST.map(m => '<option value="' + esc(m.id_mesin) + '">' + esc(m.nama) + '</option>').join('');
-  $('h_mesin').innerHTML = opsi;
-  $('l_mesin').innerHTML = opsi;
+  const opsiMesin = MESIN_LIST.map(m =>
+    '<option value="' + esc(m.id_mesin) + '">' + esc(m.nama) + '</option>').join('');
+  const opsiGrup = GRUP_MESIN.map(g =>
+    '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
+  $('h_mesin').innerHTML = '<option value="">- pilih -</option>' +
+    '<optgroup label="Pengecekan harian (grup)">' + opsiGrup + '</optgroup>' +
+    '<optgroup label="Per mesin">' + opsiMesin + '</optgroup>';
+  $('l_mesin').innerHTML = opsiMesin;
   if (PILIH) { $('h_mesin').value = PILIH; $('l_mesin').value = PILIH; }
 }
 
@@ -299,6 +306,7 @@ async function initHarian() {
 }
 
 async function kirimHarian() {
+  if (!$('h_mesin').value) { alert('Pilih mesin atau grup dulu'); $('h_mesin').focus(); return; }
   const items = CHECK.map((c, i) => ({
     item: c,
     hasil: document.querySelector('input[name=c' + i + ']:checked').value,
