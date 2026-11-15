@@ -64,6 +64,13 @@
     <label>Mesin</label><select id="h_mesin"></select>
     <label>Nama operator</label><input id="h_op" placeholder="Nama operator">
     <label>Tanggal</label><input id="h_tgl" type="date">
+    <label>Shift</label>
+    <select id="h_shift">
+      <option value="">- pilih -</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
     <div id="h_items"></div>
     <button class="btn g" onclick="kirimHarian()">SIMPAN CHECKLIST</button>
     <button class="btn o" onclick="kosongHarian()">Kosongkan Form</button>
@@ -195,6 +202,7 @@ function kosongHarian() {
   $('h_op').value = '';
   $('h_tgl').value = hariIni();
   $('h_mesin').selectedIndex = 0;
+  $('h_shift').selectedIndex = 0;
   CHECK.forEach((c, i) => {
     document.querySelector('input[name=c' + i + '][value="OK"]').checked = true;
     $('cat' + i).value = '';
@@ -261,32 +269,45 @@ async function scanKode(kode) {
   try {
     const d = await api('scan', { id: kode, teknisi: tek });
     CHECK = d.checklist || CHECK;
-    renderMesin(d.mesin, d.wo);
+    await tampilInfoMesin(d.mesin.id_mesin);
   } catch (e) { $('mesin_box').innerHTML = '<div class="card bad">' + esc(e.message) + '</div>'; }
 }
 
 async function cariManual() {
   const id = $('m_id').value.trim();
   if (!id) return;
+  await tampilInfoMesin(id);
+}
+
+async function tampilInfoMesin(id) {
   try {
-    const d = await api('detailMesin', { id: id });
-    renderMesin(d.mesin, d.woTerbuka[0] || null);
+    const d = await api('infoMesin', { id: id });
+    renderInfo(d);
   } catch (e) { $('mesin_box').innerHTML = '<div class="card bad">' + esc(e.message) + '</div>'; }
 }
 
-function renderMesin(m, wo) {
+function renderInfo(d) {
+  const m = d.mesin;
   PILIH = m.id_mesin;
+  const histori = d.histori.length
+    ? d.histori.map(h => '<div style="border-bottom:1px solid #eee;padding:6px 0">' +
+        '<b>' + esc(h.id) + '</b> · ' + esc(h.tipe) + ' · <span class="badge ' + esc(h.status) + '">' + esc(h.status) + '</span><br>' +
+        '<span style="font-size:13px;color:#5B6472">' + esc(tglJam(h.tgl)) + ' · ' + esc(h.gejala) + '</span>' +
+        (h.penyebab || h.tindakan ? '<br><span style="font-size:13px">Penyebab: ' + esc(h.penyebab || '-') +
+          ' · Tindakan: ' + esc(h.tindakan || '-') + '</span>' : '') + '</div>').join('')
+    : 'Belum ada histori.';
+  const checklist = d.checklist.map((c, i) => (i + 1) + '. ' + esc(c)).join('<br>');
+
   $('mesin_box').innerHTML =
     '<div class="card"><b>' + esc(m.nama) + '</b> (' + esc(m.id_mesin) + ')<br>' +
     'Lokasi: ' + esc(m.lokasi) + '<br>' +
     'PM tiap ' + esc(m.pm_interval_hari) + ' hari<br>' +
-    'PM berikutnya: <b>' + esc(String(m.pm_berikutnya).slice(0, 10)) + '</b>' +
-    '<div class="hr"></div>' +
-    (wo
-      ? 'WO aktif: <b>' + esc(wo.id_wo) + '</b> · ' + esc(wo.tipe) + ' · <span class="badge ' + esc(wo.status) + '">' + esc(wo.status) + '</span>' +
-        '<br>Mulai: ' + esc(wo.waktu_mulai || '-') + '<br>Gejala: ' + esc(wo.gejala || '-')
-      : 'Tidak ada WO terbuka.') +
-    '</div>' +
+    'PM terakhir: ' + esc(String(m.pm_terakhir || '-').slice(0, 10)) + '<br>' +
+    'PM berikutnya: <b>' + esc(String(m.pm_berikutnya || '-').slice(0, 10)) + '</b></div>' +
+    '<div class="card"><b>Status</b><br>' + esc(d.status) + '</div>' +
+    '<div class="card"><b>Histori (5 terakhir)</b>' + histori + '</div>' +
+    '<div class="card"><b>SOP</b><br>' + (d.sop ? '<pre>' + esc(d.sop) + '</pre>' : 'Belum ada SOP.') + '</div>' +
+    '<div class="card"><b>Checklist</b><br>' + checklist + '</div>' +
     '<button class="btn g" onclick="goTab(\'harian\')">CHECKLIST HARIAN</button>' +
     '<button class="btn" onclick="goTab(\'lapor\')">LAPOR KERUSAKAN</button>';
 }
@@ -307,16 +328,21 @@ async function initHarian() {
 
 async function kirimHarian() {
   if (!$('h_mesin').value) { alert('Pilih mesin atau grup dulu'); $('h_mesin').focus(); return; }
+  if (!$('h_shift').value) { alert('Pilih shift dulu'); $('h_shift').focus(); return; }
   const items = CHECK.map((c, i) => ({
     item: c,
     hasil: document.querySelector('input[name=c' + i + ']:checked').value,
     catatan: $('cat' + i).value
   }));
-  const d = { tanggal: $('h_tgl').value, id_mesin: $('h_mesin').value, operator: $('h_op').value, items: items };
+  const d = {
+    tanggal: $('h_tgl').value, shift: $('h_shift').value,
+    id_mesin: $('h_mesin').value, operator: $('h_op').value, items: items
+  };
   try {
     const r = await api('submitHarian', {}, d);
     const nama = (MESIN_LIST.find(m => m.id_mesin === d.id_mesin) || {}).nama || d.id_mesin;
-    let teks = '📋 CHECKLIST HARIAN\nTanggal: ' + d.tanggal + '\nMesin: ' + nama + '\nOperator: ' + (d.operator || '-') + '\n';
+    let teks = '📋 CHECKLIST HARIAN\nTanggal: ' + d.tanggal + '\nShift: ' + d.shift +
+      '\nMesin: ' + nama + '\nOperator: ' + (d.operator || '-') + '\n';
     items.forEach(i => { teks += '- ' + i.item + ': ' + i.hasil + (i.catatan ? ' (' + i.catatan + ')' : '') + '\n'; });
     if (r.adaNotOk) teks += '\n⚠️ Ada item Not OK, perlu laporan kerusakan.';
     hasil('h_box', teks);
@@ -485,6 +511,7 @@ function lihatLebihWO() {
   $('wo_cards').insertAdjacentHTML('beforeend', WO_ALL.slice(dari, WO_SHOW).map(cardWO).join(''));
   tampilFooterWO();
 }
+
 async function simpanWO(id) {
   const w = WOMAP[id] || {};
   const d = {
@@ -614,7 +641,7 @@ function kosongMasuk() {
 
 async function initLapStok() {
   const p = hariIni().split('-');
-  $('ls_tgl').textContent = p[2] + '-' + p[1] + '-' + p[0];   // tanggal hari ini, dd-mm-yyyy
+  $('ls_tgl').textContent = p[2] + '-' + p[1] + '-' + p[0];
   const list = await api('lapStok');
   if (!list.length) {
     $('ls_box').innerHTML = '<div class="card">Tidak ada sparepart yang masih ada stok.</div>';
