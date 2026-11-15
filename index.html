@@ -414,44 +414,77 @@ function tglJam(s) {
   return m ? (m[3] + '-' + m[2] + '-' + m[1] + ' ' + m[4]) : (s || '-');
 }
 
-async function loadWO() {
-  await loadMasterPart();
-  const list = await api('woList');
-  if (!list.length) { $('wo_list').innerHTML = '<div class="card">Belum ada WO.</div>'; return; }
-  $('wo_list').innerHTML = list.map(w => {
-    WOMAP[w.id_wo] = w;
-    const id = esc(w.id_wo);
-    const waktu =
-      '<div style="font-size:13px;color:#5B6472;margin-top:4px">' +
-      'Dibuat: <b>' + esc(tglJam(w.tanggal_buat)) + '</b><br>' +
-      'Mulai: ' + esc(tglJam(w.waktu_mulai)) + '<br>' +
-      'Selesai: ' + esc(tglJam(w.waktu_selesai)) +
-      '</div>';
-    const info = '<b>' + id + '</b> <span class="badge">' + esc(w.tipe) + '</span><br>' +
-      'Mesin ' + esc(w.id_mesin) + ' · urgensi ' + esc(w.urgensi) + ' · <span class="badge ' + esc(w.status) + '">' + esc(w.status) + '</span><br>' +
-      'Gejala: ' + esc(w.gejala) + '<br>Mesin berhenti: <b>' + esc(w.mesin_berhenti || '-') + '</b>' + waktu;
-    if (w.status === 'Selesai') {
-      return '<div class="card" style="opacity:.7">' + info + '<br>Teknisi: ' + esc(w.teknisi) +
-        '<br>Penyebab: ' + esc(w.penyebab) + '<br>Tindakan: ' + esc(w.tindakan) +
-        '<br>Spare part: ' + esc(w.spare_part) + '<br>Durasi: ' + esc(w.durasi_menit) + ' menit<br><i>WO selesai, terkunci.</i></div>';
-    }
-    return '<div class="card" id="card_' + id + '">' + info +
-      '<label>Status</label><select id="s_' + id + '">' +
-      ['Baru','Ditugaskan','Dikerjakan','Menunggu Spare Part','Uji Jalan','Selesai']
-        .map(s => '<option' + (s === w.status ? ' selected' : '') + '>' + s + '</option>').join('') +
-      '</select>' +
-      '<label>Teknisi</label><input id="t_' + id + '" value="' + esc(w.teknisi) + '">' +
-      '<label>Penyebab</label><input id="p_' + id + '" value="' + esc(w.penyebab) + '">' +
-      '<label>Tindakan</label><input id="a_' + id + '" value="' + esc(w.tindakan) + '">' +
-      '<label>Spare part (ringkasan)</label><input id="sp_' + id + '" value="' + esc(w.spare_part) + '">' +
-      '<div class="hr"></div><b>Sparepart dipakai</b><div id="pbox_' + id + '"></div>' +
-      '<button class="btn" onclick="tambahBarisPart(\'' + id + '\')">+ Tambah sparepart</button>' +
-      '<button class="btn" onclick="simpanPartWO(\'' + id + '\')">SIMPAN SPAREPART</button>' +
-      '<button class="btn g" onclick="simpanWO(\'' + id + '\')">SIMPAN PERUBAHAN</button>' +
-      '<div id="box_' + id + '"></div></div>';
-  }).join('');
+let WO_ALL = [], WO_SHOW = 5;
+const WO_PER_HALAMAN = 5;
+
+function ringkasPart(list) {
+  if (!list || !list.length) return 'Sparepart terpakai: <b>0</b>';
+  const total = list.reduce((s, x) => s + (Number(x.qty) || 0), 0);
+  return 'Sparepart terpakai: <b>' + list.length + ' jenis</b> (total qty ' + total + ')<br>' +
+    list.map(x => '· ' + esc(x.nama) + ' ' + esc(x.qty) + ' ' + esc(x.satuan)).join('<br>');
 }
 
+function cardWO(w) {
+  WOMAP[w.id_wo] = w;
+  const id = esc(w.id_wo);
+  const waktu =
+    '<div style="font-size:13px;color:#5B6472;margin-top:4px">' +
+    'Dibuat: <b>' + esc(tglJam(w.tanggal_buat)) + '</b><br>' +
+    'Mulai: ' + esc(tglJam(w.waktu_mulai)) + '<br>' +
+    'Selesai: ' + esc(tglJam(w.waktu_selesai)) +
+    '</div>';
+  const part = '<div style="font-size:13px;color:#5B6472;margin-top:6px">' + ringkasPart(w.sparepart) + '</div>';
+  const info = '<b>' + id + '</b> <span class="badge">' + esc(w.tipe) + '</span><br>' +
+    'Mesin ' + esc(w.id_mesin) + ' · urgensi ' + esc(w.urgensi) + ' · <span class="badge ' + esc(w.status) + '">' + esc(w.status) + '</span><br>' +
+    'Gejala: ' + esc(w.gejala) + '<br>Mesin berhenti: <b>' + esc(w.mesin_berhenti || '-') + '</b>' + waktu + part;
+
+  if (w.status === 'Selesai') {
+    return '<div class="card" style="opacity:.7">' + info + '<br>Teknisi: ' + esc(w.teknisi) +
+      '<br>Penyebab: ' + esc(w.penyebab) + '<br>Tindakan: ' + esc(w.tindakan) +
+      '<br>Spare part: ' + esc(w.spare_part) + '<br>Durasi: ' + esc(w.durasi_menit) + ' menit<br><i>WO selesai, terkunci.</i></div>';
+  }
+  return '<div class="card" id="card_' + id + '">' + info +
+    '<label>Status</label><select id="s_' + id + '">' +
+    ['Baru','Ditugaskan','Dikerjakan','Menunggu Spare Part','Uji Jalan','Selesai']
+      .map(s => '<option' + (s === w.status ? ' selected' : '') + '>' + s + '</option>').join('') +
+    '</select>' +
+    '<label>Teknisi</label><input id="t_' + id + '" value="' + esc(w.teknisi) + '">' +
+    '<label>Penyebab</label><input id="p_' + id + '" value="' + esc(w.penyebab) + '">' +
+    '<label>Tindakan</label><input id="a_' + id + '" value="' + esc(w.tindakan) + '">' +
+    '<label>Spare part (ringkasan)</label><input id="sp_' + id + '" value="' + esc(w.spare_part) + '">' +
+    '<div class="hr"></div><b>Sparepart dipakai</b><div id="pbox_' + id + '"></div>' +
+    '<button class="btn" onclick="tambahBarisPart(\'' + id + '\')">+ Tambah sparepart</button>' +
+    '<button class="btn" onclick="simpanPartWO(\'' + id + '\')">SIMPAN SPAREPART</button>' +
+    '<button class="btn g" onclick="simpanWO(\'' + id + '\')">SIMPAN PERUBAHAN</button>' +
+    '<div id="box_' + id + '"></div></div>';
+}
+
+async function loadWO() {
+  await loadMasterPart();
+  WO_ALL = await api('woListPart');
+  WO_SHOW = WO_PER_HALAMAN;
+  $('wo_list').innerHTML = '<div id="wo_cards"></div><div id="wo_footer"></div>';
+  if (!WO_ALL.length) { $('wo_cards').innerHTML = '<div class="card">Belum ada WO.</div>'; return; }
+  $('wo_cards').innerHTML = WO_ALL.slice(0, WO_SHOW).map(cardWO).join('');
+  tampilFooterWO();
+}
+
+function tampilFooterWO() {
+  let h = '<div style="font-size:13px;color:#5B6472;text-align:center;margin:6px 0">Menampilkan ' +
+    Math.min(WO_SHOW, WO_ALL.length) + ' dari ' + WO_ALL.length + ' WO</div>';
+  if (WO_SHOW < WO_ALL.length) {
+    h += '<button class="btn o" onclick="lihatLebihWO()">Tampilkan lebih banyak</button>';
+  }
+  $('wo_footer').innerHTML = h;
+}
+
+// Tambah kartu baru di bawah tanpa menghapus kartu yang sedang diisi
+function lihatLebihWO() {
+  const dari = WO_SHOW;
+  WO_SHOW = Math.min(WO_SHOW + WO_PER_HALAMAN, WO_ALL.length);
+  $('wo_cards').insertAdjacentHTML('beforeend', WO_ALL.slice(dari, WO_SHOW).map(cardWO).join(''));
+  tampilFooterWO();
+}
 async function simpanWO(id) {
   const w = WOMAP[id] || {};
   const d = {
