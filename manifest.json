@@ -1,7 +1,7 @@
 {
   "name": "Maintenance STP",
   "short_name": "Maintenance",
-  "start_url": "./maintenance.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#FFFFFF",
