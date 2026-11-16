@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,...">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <script src="logo.js"></script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="32x32" href="logo-favicon.png">
@@ -31,9 +31,23 @@
   #reader{width:100%;max-width:360px;aspect-ratio:1/1;margin:8px auto 0;display:none;overflow:hidden;border-radius:12px;background:#000}
   #reader video{width:100%!important;height:100%!important;object-fit:cover}
   .hr{border-top:1px solid #eee;margin:8px 0}
+  #login{position:fixed;inset:0;background:#F3F4F6;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:99}
+  #login .logo-besar{width:180px;height:180px;border-radius:50%;background:#fff;box-shadow:0 2px 8px #0002;margin-bottom:12px}
+  #login h2{font-size:18px;margin:0 0 16px;color:#1D4E89}
+  #login input{max-width:260px;text-align:center;font-size:22px;letter-spacing:6px}
+  #login .btn{max-width:260px;width:100%}
 </style>
 </head>
 <body>
+<div id="login">
+  <img src="logo-192.png" alt="Logo STP" class="logo-besar">
+  <h2>MAINTENANCE STP</h2>
+  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" maxlength="8"
+         onkeydown="if(event.key==='Enter')masukPin()">
+  <button class="btn" onclick="masukPin()">MASUK</button>
+  <div id="login_msg" class="bad" style="margin-top:10px"></div>
+</div>
+
 <h1>MAINTENANCE STP PANDAAN</h1>
 <nav>
   <button id="nav_mesin" onclick="tab('mesin')">Mesin</button>
@@ -44,7 +58,7 @@
   <button id="nav_kpi" onclick="tab('kpi')">KPI</button>
   <button id="nav_masuk" onclick="tab('masuk')">Sparepart Masuk</button>
   <button id="nav_lapstok" onclick="tab('lapstok')">Lap. Stok</button>
-  <button class="btn o" onclick="localStorage.removeItem('mt_k');location.reload()">Keluar / Ganti Kode</button>
+  <button class="btn o" onclick="location.reload()">Keluar</button>
 </nav>
 
 <!-- MESIN -->
@@ -56,7 +70,7 @@
     <div id="reader"></div>
     <button class="btn" id="btnStopScan" style="display:none;background:#fff;color:#1D4E89;border:1px solid #1D4E89" onclick="scanStop()">Tutup Kamera</button>
     <label style="margin-top:10px">atau ketik ID mesin</label>
-    <input id="m_id" placeholder="contoh: TF05L">
+    <input id="m_id" placeholder="contoh: M01">
     <button class="btn" onclick="cariManual()">CARI</button>
     <button class="btn o" onclick="kosongMesin()">Kosongkan Form</button>
   </div>
@@ -140,8 +154,8 @@
 
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbwEWldl8dCISBOXZ0-TrKuUYEhcbVmY9fGNuAzllYTW0xu36Wg4IXvKRE2ylnlIxM0n/exec';
-let KEY = localStorage.getItem('mt_k') || '';
-if (!KEY) { KEY = prompt('Kode akses:') || ''; localStorage.setItem('mt_k', KEY); }
+let KEY = '';          // PIN yang sedang dipakai (hanya di memori, diminta setiap kali halaman dibuka)
+let MENU_USER = [];
 
 let CHECK = [], MESIN_LIST = [], MASTER_PART = [], PILIH = '', scanner = null;
 let PART_PILIH = {};
@@ -191,6 +205,33 @@ function tab(id) {
   const fn = { mesin: initMesin, harian: initHarian, lapor: initLapor, pm: loadPM,
                wo: loadWO, kpi: loadKPI, masuk: initMasuk, lapstok: initLapStok }[id];
   fn().catch(e => alert('Gagal: ' + (e.message || e)));
+}
+
+/* ====== LOGIN PIN ====== */
+
+function masukPin() {
+  const p = $('pin').value.trim();
+  if (!p) { $('login_msg').textContent = 'Masukkan PIN'; return; }
+  KEY = p;
+  api('login').then(u => {
+    MENU_USER = u.menu;
+    terapkanMenu();
+    $('login').style.display = 'none';
+    $('pin').value = '';
+    $('login_msg').textContent = '';
+    tab(MENU_USER.indexOf('mesin') >= 0 ? 'mesin' : MENU_USER[0]);
+  }).catch(e => {
+    KEY = '';
+    $('login_msg').textContent = e.message || 'PIN salah';
+  });
+}
+
+// Sembunyikan tombol menu yang tidak diizinkan untuk PIN ini
+function terapkanMenu() {
+  document.querySelectorAll('nav button[id^="nav_"]').forEach(b => {
+    const m = b.id.replace('nav_', '');
+    b.style.display = MENU_USER.indexOf(m) >= 0 ? '' : 'none';
+  });
 }
 
 /* ====== KOSONGKAN FORM ====== */
@@ -439,7 +480,6 @@ async function simpanPartWO(id) {
   } catch (e) { alert('Gagal: ' + e.message); }
 }
 
-// Ubah "2026-11-13 09:21" menjadi "13-11-2026 09:21"
 function tglJam(s) {
   const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})/);
   return m ? (m[3] + '-' + m[2] + '-' + m[1] + ' ' + m[4]) : (s || '-');
@@ -509,7 +549,6 @@ function tampilFooterWO() {
   $('wo_footer').innerHTML = h;
 }
 
-// Tambah kartu baru di bawah tanpa menghapus kartu yang sedang diisi
 function lihatLebihWO() {
   const dari = WO_SHOW;
   WO_SHOW = Math.min(WO_SHOW + WO_PER_HALAMAN, WO_ALL.length);
@@ -531,7 +570,6 @@ async function simpanWO(id) {
     if (d.penyebab) teks += '\nPenyebab: ' + d.penyebab;
     if (d.tindakan) teks += '\nTindakan: ' + d.tindakan;
     if (d.spare_part) teks += '\nSpare part: ' + d.spare_part;
-
     if (d.status === 'Selesai') {
       tampilSelesai(id, teks);
     } else {
@@ -540,7 +578,6 @@ async function simpanWO(id) {
   } catch (e) { galat('box_' + id, e); }
 }
 
-// Setelah WO selesai: form dikunci, hanya tombol Share WA yang tampil
 function tampilSelesai(id, teks) {
   SELESAI_TEKS[id] = teks;
   const card = $('card_' + id);
@@ -550,7 +587,6 @@ function tampilSelesai(id, teks) {
     '<button class="btn wa-btn" onclick="kirimSelesai(\'' + id + '\')">Share WA</button>';
 }
 
-// Share WA, lalu kartu dikosongkan dari layar
 function kirimSelesai(id) {
   waShare(SELESAI_TEKS[id] || '');
   const card = $('card_' + id);
@@ -660,7 +696,7 @@ async function initLapStok() {
     '</table></div>';
 }
 
-window.onload = () => { if (KEY) tab('mesin'); };
+window.onload = () => { $('pin').focus(); };
 </script>
 </body>
 </html>
